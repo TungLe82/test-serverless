@@ -1,9 +1,11 @@
-export const resStructure = (
-  code: number,
-  value: any,
-  error: any = "",
-  errorCode: string = ""
-) => {
-  error = error.message ? error.message : error;
-  return { data: value, meta: { message: error, errorCode: errorCode }, code };
-};
+export default class HttpResponseModel {
+  public message: string;
+  public status: number;
+  public data: any;
+
+  constructor(status: number, data?: any, message?: string) {
+    this.status = status;
+    this.message = message;
+    this.data = data;
+  }
+}

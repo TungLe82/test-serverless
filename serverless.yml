@@ -26,8 +26,8 @@ provider:
     PRODUCT_TABLE: ${self:custom.tableName}
 
 functions:
-  api:
-    handler: dist/index.handler
+  productApi:
+    handler: dist/index.productHandler
     events:
       - httpApi: "*"
 

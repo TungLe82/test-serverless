@@ -1,27 +1,28 @@
-import DynamoDB, { DocumentClient } from "aws-sdk/clients/dynamodb";
+import DynamoDB, { DocumentClient, Key } from "aws-sdk/clients/dynamodb";
 import DynamoDBConnection from "./db-connection";
 import { isEmpty, has } from "lodash";
 import { DEFAULT_LIMIT } from "../configs/constants";
 
 export default class DbHelper {
-  private client: DynamoDB.DocumentClient;
+  public client: DynamoDB.DocumentClient;
+
   constructor() {
     this.client = DynamoDBConnection.Client();
   }
 
-  async insertOrReplace(item: any, tableName: string): Promise<any> {
+  public async insertOrReplace(tableName: string, item: any): Promise<any> {
     const params: DocumentClient.PutItemInput = {
       TableName: tableName,
       Item: item,
     };
 
-    const result = await this.client.put(params).promise();
+    await this.client.put(params).promise();
     return item;
   }
 
-  async find(id: string, tableName: string): Promise<any> {
+  public async findById(tableName: string, key: any): Promise<any> {
     const params = {
-      Key: { id },
+      Key: key,
       TableName: tableName,
     };
 
@@ -34,8 +35,7 @@ export default class DbHelper {
     }
   }
 
-  async getWhereIdIn(ids: string[], tableName: string): Promise<any[]> {
-    const keys = ids.map((id) => ({ id }));
+  public async getWhereIdIn(tableName: string, keys: any[]): Promise<any[]> {
     const params = { RequestItems: {} };
     params.RequestItems[tableName] = { Keys: keys };
 
@@ -51,10 +51,11 @@ export default class DbHelper {
     }
   }
 
-  async list(
+  public async list(
     tableName: string,
     limit?: number,
-    nextToken?: string
+    keyName?: string,
+    nextToken?: any
   ): Promise<{
     nextToken: string;
     items: any[];
@@ -68,14 +69,14 @@ export default class DbHelper {
       TableName: tableName,
     };
     if (nextToken) {
-      params.ExclusiveStartKey = { id: nextToken };
+      params.ExclusiveStartKey = { [keyName]: nextToken };
     }
 
     const result = await this.client.scan(params).promise();
 
     let newNextToken = null;
     if (has(result, "LastEvaluatedKey")) {
-      newNextToken = result.LastEvaluatedKey.id;
+      newNextToken = result.LastEvaluatedKey[keyName];
     }
 
     return {
@@ -84,7 +85,7 @@ export default class DbHelper {
     };
   }
 
-  async query(
+  public async query(
     tableName: string,
     indexName: string,
     hashIndexOpts: any
@@ -105,24 +106,40 @@ export default class DbHelper {
     return result.Items;
   }
 
-  async update(tableName: string, id: string, data: any): Promise<any> {
+  public async updateById(
+    tableName: string,
+    key: any,
+    data: any
+  ): Promise<any> {
     const updateExpressions = [];
     const expressionsValues = {};
+    const expressionAttributeNames = {};
     for (const fieldName of Object.keys(data)) {
       const fieldValue = data[fieldName];
-      updateExpressions.push(`${fieldName} = :${fieldName}`);
+      updateExpressions.push(`#${fieldName} = :${fieldName}`);
       expressionsValues[`:${fieldName}`] = fieldValue;
+      expressionAttributeNames[`#${fieldName}`] = fieldName;
     }
     const updateExpression = "set " + updateExpressions.join(", ");
 
     const params: DocumentClient.UpdateItemInput = {
       TableName: tableName,
-      Key: { id },
+      Key: key,
       UpdateExpression: updateExpression,
       ExpressionAttributeValues: expressionsValues,
+      ExpressionAttributeNames: expressionAttributeNames,
     };
 
     const result = await this.client.update(params).promise();
+    return result;
+  }
+
+  public async deleteById(tableName: string, key: any): Promise<any> {
+    const params: DocumentClient.DeleteItemInput = {
+      Key: key,
+      TableName: tableName,
+    };
+    const result = await this.client.delete(params).promise();
     return result;
   }
 }
